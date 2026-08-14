@@ -1940,7 +1940,7 @@ buildFAQ($('#faq-list'), [
 
   var LEAF='h1,h2,h3,h4,p,span,a,button,small,b,strong,li,td,th,figcaption,dd,dt';
   var SKIP_IN='#ed-bar,#ed-help,#ed-note,.ph,svg,select,option,script,style';
-  var store=[], on=false, restored=0;
+  var store=[], on=false, restored=0, _sent={};
   var KEY='dieselprog-korekta-wylaczenie-adblue';
 
   /* ===== Supabase — спільна база правок ===== */
@@ -2035,6 +2035,26 @@ buildFAQ($('#faq-list'), [
     return true;
   }
 
+  var lastEdited=null;
+  function valOf(r){
+    return r.kind==='ph' ? r.el.getAttribute('placeholder') : r.el.textContent.trim();
+  }
+  function setVal(r, v){
+    if(r.kind==='ph') r.el.setAttribute('placeholder', v);
+    else r.el.textContent = v;
+  }
+  /* той самий текст трапляється на сторінці кілька разів (меню, футер, картка) —
+     після правки одного місця вирівнюємо решту, щоб не було розбіжностей */
+  function syncSame(){
+    if(!lastEdited) return;
+    var v=valOf(lastEdited);
+    store.forEach(function(r){
+      if(r===lastEdited || r.orig!==lastEdited.orig) return;
+      if(r.el.getAttribute && r.el.getAttribute('contenteditable')==='true') return;
+      if(valOf(r)!==v) setVal(r, v);
+    });
+  }
+
   function isLeaf(el){
     if(!el.textContent.trim()) return false;
     if(el.closest(SKIP_IN)) return false;
@@ -2074,27 +2094,34 @@ buildFAQ($('#faq-list'), [
     });
     count();
   }
+  /* одна правка = один текст, навіть якщо він повторюється в кількох місцях */
   function changed(){
-    return store.filter(function(r){
-      var now = r.kind==='ph' ? r.el.getAttribute('placeholder') : r.el.textContent.trim();
-      return now !== r.orig;
+    var seen={}, out=[];
+    store.forEach(function(r){
+      if(valOf(r)===r.orig) return;
+      if(seen[r.orig]) return;
+      seen[r.orig]=true; out.push(r);
     });
+    return out;
   }
   function count(persist){
+    syncSame();
     var n=changed().length;
     document.getElementById('ed-count').textContent = n ? (n+' змін') : 'без змін';
     var rb=document.getElementById('ed-reset');
     if(rb) rb.disabled = !n;
     store.forEach(function(r){
-      var now = r.kind==='ph' ? r.el.getAttribute('placeholder') : r.el.textContent.trim();
-      r.el.classList.toggle('ed-changed', now!==r.orig);
+      r.el.classList.toggle('ed-changed', valOf(r)!==r.orig);
     });
     if(persist!==false){
       writeSaved();
-      store.forEach(function(r){
-        var now = r.kind==='ph' ? r.el.getAttribute('placeholder') : r.el.textContent.trim();
-        if(now!==r.orig && r._sent!==now){ r._sent=now; sbPush(r, now); }
-        if(now===r.orig && r._sent){ r._sent=null; sbDrop(r.orig); }
+      var sent={};
+      changed().forEach(function(r){
+        var now=valOf(r); sent[r.orig]=true;
+        if(_sent[r.orig]!==now){ _sent[r.orig]=now; sbPush(r, now); }
+      });
+      Object.keys(_sent).forEach(function(orig){
+        if(!sent[orig]){ delete _sent[orig]; sbDrop(orig); }
       });
     }
     document.body.classList.toggle('ed-restored', n>0 && !on);
@@ -2124,17 +2151,24 @@ buildFAQ($('#faq-list'), [
   document.addEventListener('focusout', function(e){
     var t=e.target;
     if(t.getAttribute && t.getAttribute('contenteditable')==='true'){
-      t.removeAttribute('contenteditable'); count();
+      t.removeAttribute('contenteditable');
+      lastEdited = store[+t.getAttribute('data-ed')] || null;
+      count();
     }
     if(t.classList && t.classList.contains('ed-input')){
       t.setAttribute('placeholder', t.value.trim());
-      t.value=''; t.classList.remove('ed-input'); count();
+      t.value=''; t.classList.remove('ed-input');
+      lastEdited = store[+t.getAttribute('data-edph')] || null;
+      count();
     }
   }, true);
 
   document.addEventListener('input', function(e){
     var t=e.target;
-    if(t.getAttribute && t.getAttribute('contenteditable')==='true') count();
+    if(t.getAttribute && t.getAttribute('contenteditable')==='true'){
+      lastEdited = store[+t.getAttribute('data-ed')] || null;
+      count();
+    }
   }, true);
 
   document.addEventListener('keydown', function(e){
@@ -2165,6 +2199,7 @@ buildFAQ($('#faq-list'), [
   help.id='ed-help';
   help.innerHTML='<b>Режим редагування увімкнено.</b><br>Клацніть будь-який текст і виправте його. '+
     'Enter — зберегти, Escape — скасувати. Виправлені місця підсвічуються помаранчевим. '+
+    'Якщо той самий текст є в кількох місцях (меню, футер, картка) — він оновиться скрізь одночасно. '+
     'Зміни зберігаються автоматично у спільній базі — їх бачить кожен, хто відкриє цю сторінку, '+
     'нічого додатково натискати не треба.';
   var note=document.createElement('div');
@@ -2186,8 +2221,8 @@ buildFAQ($('#faq-list'), [
     try{ localStorage.removeItem(KEY); }catch(e){}
     fetch(SB.url+'/rest/v1/korekty?page=eq.'+encodeURIComponent(SB.page),
       {method:'DELETE', headers:sbHeaders()}).catch(function(){});
+    _sent={}; lastEdited=null;
     store.forEach(function(r){
-      r._sent=null;
       if(r.kind==='ph') r.el.setAttribute('placeholder', r.orig);
       else r.el.textContent = r.orig;
       r.el.classList.remove('ed-changed');
