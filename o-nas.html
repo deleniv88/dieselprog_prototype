@@ -1945,7 +1945,10 @@ $('#logos').innerHTML = [1,2,3,4,5].map(n=>
     try{ localStorage.setItem(KEY, JSON.stringify(data)); }catch(e){}
   }
   function applySaved(r){
-    var saved=(remote && remote[r.orig]) ? {v:remote[r.orig].v} : readSaved()[r.orig];
+    /* remote !== null означає, що база відповіла — тоді вона головна,
+       локальна копія потрібна лише за відсутності зв'язку */
+    var saved = remote ? (remote[r.orig] ? {v:remote[r.orig].v} : null)
+                       : readSaved()[r.orig];
     if(!saved) return false;
     if(r.kind==='ph') r.el.setAttribute('placeholder', saved.v);
     else r.el.textContent = saved.v;
@@ -2034,7 +2037,7 @@ $('#logos').innerHTML = [1,2,3,4,5].map(n=>
       store.push(rp);
       if(applySaved(rp)) restored++;
     });
-    count();
+    count(false);
   }
   /* одна правка = один текст, навіть якщо він повторюється в кількох місцях */
   function changed(){
@@ -2163,7 +2166,7 @@ $('#logos').innerHTML = [1,2,3,4,5].map(n=>
     try{ localStorage.removeItem(KEY); }catch(e){}
     fetch(SB.url+'/rest/v1/korekty?page=eq.'+encodeURIComponent(SB.page),
       {method:'DELETE', headers:sbHeaders()}).catch(function(){});
-    _sent={}; lastEdited=null;
+    _sent={}; lastEdited=null; remote={};
     store.forEach(function(r){
       if(r.kind==='ph') r.el.setAttribute('placeholder', r.orig);
       else r.el.textContent = r.orig;
@@ -2174,7 +2177,17 @@ $('#logos').innerHTML = [1,2,3,4,5].map(n=>
 
   sbLoad().then(function(map){
     remote = map;
-    if(map===null) status('Немає зв\'язку з базою — зміни лише в цьому браузері','warn');
+    if(map===null){
+      status('Немає зв\'язку з базою — зміни лише в цьому браузері','warn');
+    } else {
+      /* локальна копія = точний зліпок бази; чого в базі немає — зникає і тут */
+      var mirror={};
+      Object.keys(map).forEach(function(orig){
+        mirror[orig]={v:map[orig].v, k:map[orig].k};
+        _sent[orig]=map[orig].v;
+      });
+      try{ localStorage.setItem(KEY, JSON.stringify(mirror)); }catch(e){}
+    }
     [0,400,1200,2600,4000].forEach(function(ms){ setTimeout(mark, ms); });
   });
 })();
