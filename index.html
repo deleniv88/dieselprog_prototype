@@ -950,7 +950,7 @@ h3{font-size:1.4rem;letter-spacing:-.025em;line-height:1.2}
 </style>
 
 <style id="editor-css">
-/* ===== NAKŁADKA REDAKCYJNA — nie jest częścią strony ===== */
+/* ===== ШАР РЕДАГУВАННЯ — не є частиною сайту ===== */
 #ed-bar{position:fixed;left:1rem;bottom:1rem;z-index:400;display:flex;align-items:center;gap:.5rem;
   padding:.5rem;border-radius:62.5rem;background:rgba(20,20,20,.96);border:1px solid #2E2E2E;
   box-shadow:0 1rem 3rem rgba(0,0,0,.6);font-family:Manrope,system-ui,sans-serif}
@@ -960,34 +960,35 @@ h3{font-size:1.4rem;letter-spacing:-.025em;line-height:1.2}
 #ed-toggle.on{background:#2E7D32;color:#fff}
 #ed-save{background:#333;color:#fff}
 #ed-copy{background:#2A2A2A;color:#BDBDBD}
-#ed-copy:disabled{opacity:.4;cursor:default}
-#ed-save:disabled,#ed-reset:disabled{opacity:.4;cursor:default}
+#ed-reset{background:#2A2A2A;color:#BDBDBD}
+#ed-save:disabled,#ed-copy:disabled,#ed-reset:disabled{opacity:.4;cursor:default}
 #ed-count{font-size:.8rem;color:#9A9A9A;padding:0 .6rem;font-family:Manrope,system-ui,sans-serif}
 #ed-status{font-size:.76rem;color:#9A9A9A;font-family:Manrope,system-ui,sans-serif}
 #ed-status:empty{display:none}
 #ed-status.ok{color:#63C77E}
 #ed-status.warn{color:#FF9A3C}
-#ed-help{position:fixed;left:1rem;bottom:4.6rem;z-index:400;max-width:19rem;padding:.9rem 1rem;
+#ed-help{position:fixed;left:1rem;bottom:4.6rem;z-index:400;max-width:20rem;padding:.9rem 1rem;
   border-radius:.9rem;background:rgba(20,20,20,.96);border:1px solid #2E2E2E;color:#9A9A9A;
   font-size:.78rem;line-height:1.5;font-family:Manrope,system-ui,sans-serif;display:none}
 #ed-help b{color:#fff;font-weight:600}
 body.ed-on #ed-help{display:block}
+#ed-note{position:fixed;left:1rem;bottom:4.6rem;z-index:401;max-width:20rem;padding:.7rem .9rem;
+  border-radius:.8rem;background:#FF9A3C;color:#1A1A1A;font-size:.78rem;line-height:1.45;font-weight:500;
+  font-family:Manrope,system-ui,sans-serif;display:none}
+body.ed-restored #ed-note{display:block}
+
 body.ed-on [data-ed]{outline:1px dashed rgba(120,180,255,.45);outline-offset:2px;cursor:text;border-radius:2px}
 body.ed-on [data-ed]:hover{outline-color:rgba(120,180,255,.9);background:rgba(120,180,255,.07)}
 body.ed-on [data-ed][contenteditable="true"]{outline:2px solid #5AA0FF;background:rgba(90,160,255,.12)}
 [data-ed].ed-changed{outline:2px solid #FF9A3C !important;outline-offset:2px;
   background:rgba(255,154,60,.14);border-radius:2px}
 input.ed-changed,textarea.ed-changed{outline:2px solid #FF9A3C;background:rgba(255,154,60,.10)}
-#ed-reset{background:#2A2A2A;color:#BDBDBD}
-#ed-note{position:fixed;left:1rem;bottom:4.6rem;z-index:401;max-width:19rem;padding:.7rem .9rem;
-  border-radius:.8rem;background:#FF9A3C;color:#1A1A1A;font-size:.78rem;line-height:1.45;font-weight:500;
-  font-family:Manrope,system-ui,sans-serif;display:none}
-body.ed-restored #ed-note{display:block}
 body.ed-on input,body.ed-on textarea{cursor:text}
 body.ed-on input.ed-input,body.ed-on textarea.ed-input{outline:2px solid #5AA0FF}
-@media (max-width:640px){
-  #ed-bar{left:.5rem;right:.5rem;bottom:5.5rem;justify-content:space-between}
-  #ed-help{left:.5rem;right:.5rem;max-width:none;bottom:9.2rem}
+
+/* редагування доступне лише на комп'ютері */
+@media (max-width:1023px){
+  #ed-bar,#ed-help,#ed-note{display:none !important}
 }
 </style>
 </head>
@@ -1882,7 +1883,7 @@ else addEventListener('load',()=>setTimeout(finish,MIN));
 setTimeout(finish,MAX);
 
 
-/* ===== SKRYPT STRONY ===== */
+/* ===== СКРИПТ СТОРІНКИ ===== */
 
 
 /* ============================================================
@@ -2141,16 +2142,18 @@ if(modalForm){
 </script>
 
 <script id="editor-js">
-/* ===== NAKŁADKA REDAKCYJNA =====
-   Pozwala poprawiać teksty bezpośrednio na stronie i pobrać listę zmian.
-   Nie zmienia samej strony — to warstwa dodana tylko na czas korekty. */
+/* ===== ШАР РЕДАГУВАННЯ ТЕКСТІВ =====
+   Дозволяє правити тексти прямо на сторінці. Правки зберігаються у спільній базі.
+   Працює лише на комп'ютері — на телефоні шар не вмикається. */
 (function(){
+  if(matchMedia('(max-width:1023px)').matches) return;
+
   var LEAF='h1,h2,h3,h4,p,span,a,button,small,b,strong,li,td,th,figcaption,dd,dt';
-  var SKIP_IN='#ed-bar,#ed-help,.ph,svg,select,option,script,style';
-  var store=[], on=false;
+  var SKIP_IN='#ed-bar,#ed-help,#ed-note,.ph,svg,select,option,script,style';
+  var store=[], on=false, restored=0;
   var KEY='dieselprog-korekta-index';
 
-  /* ===== Supabase — wspólna baza poprawek ===== */
+  /* ===== Supabase — спільна база правок ===== */
   var SB={
     url:'https://twwxpdthfdhxumqubcvr.supabase.co',
     key:'sb_publishable_rYfQoUBusStP6MeOKW56dQ_a7Ec7kyw',
@@ -2158,7 +2161,7 @@ if(modalForm){
   };
   var AKEY='dieselprog-korekta-autor';
   var author = localStorage.getItem(AKEY) || '';
-  var queue={}, saving=false, online=true;
+  var queue={}, saving=false, remote=null;
 
   function sbHeaders(extra){
     var h={'apikey':SB.key,'Authorization':'Bearer '+SB.key,'Content-Type':'application/json'};
@@ -2168,8 +2171,7 @@ if(modalForm){
   function status(txt, cls){
     var el=document.getElementById('ed-status');
     if(!el) return;
-    el.textContent=txt||'';
-    el.className = cls||'';
+    el.textContent=txt||''; el.className=cls||'';
   }
   function sbLoad(){
     return fetch(SB.url+'/rest/v1/korekty?select=original,updated,kind&page=eq.'+encodeURIComponent(SB.page),
@@ -2178,10 +2180,9 @@ if(modalForm){
       .then(function(list){
         var map={};
         list.forEach(function(row){ map[row.original]={v:row.updated,k:row.kind}; });
-        online=true;
         return map;
       })
-      .catch(function(){ online=false; return null; });
+      .catch(function(){ return null; });
   }
   function sbPush(rec, now){
     queue[rec.orig]={page:SB.page, original:rec.orig, updated:now,
@@ -2199,7 +2200,7 @@ if(modalForm){
     flushTimer=setTimeout(function(){
       var rows=Object.keys(queue).map(function(k){ return queue[k]; });
       if(!rows.length || saving) return;
-      saving=true; queue={}; status('Zapisywanie…','');
+      saving=true; queue={}; status('Збереження…','');
       fetch(SB.url+'/rest/v1/korekty?on_conflict=page,original',{
         method:'POST',
         headers:sbHeaders({'Prefer':'resolution=merge-duplicates,return=minimal'}),
@@ -2207,22 +2208,23 @@ if(modalForm){
       }).then(function(r){
         saving=false;
         if(!r.ok) throw new Error(r.status);
-        online=true; status('Zapisano w bazie','ok');
+        status('Збережено в базі','ok');
         setTimeout(function(){ if(!Object.keys(queue).length) status(''); }, 2200);
       }).catch(function(){
-        saving=false; online=false;
+        saving=false;
         rows.forEach(function(r){ queue[r.original]=r; });
-        status('Brak połączenia — zapisano lokalnie','warn');
+        status('Немає зв\'язку — збережено локально','warn');
       });
     }, 700);
   }
   function askAuthor(){
     if(author) return;
-    var n=prompt('Podaj imię — podpiszemy nim Twoje poprawki (możesz zostawić puste):','');
+    var n=prompt('Вкажіть ім\'я — ним буде підписано ваші правки (можна лишити порожнім):','');
     author=(n||'').trim();
     localStorage.setItem(AKEY, author);
   }
 
+  /* ===== локальна копія на випадок втрати зв'язку ===== */
   function readSaved(){
     try{ return JSON.parse(localStorage.getItem(KEY)||'{}'); }catch(e){ return {}; }
   }
@@ -2234,7 +2236,6 @@ if(modalForm){
     });
     try{ localStorage.setItem(KEY, JSON.stringify(data)); }catch(e){}
   }
-  var remote=null;
   function applySaved(r){
     var saved=(remote && remote[r.orig]) ? {v:remote[r.orig].v} : readSaved()[r.orig];
     if(!saved) return false;
@@ -2255,15 +2256,14 @@ if(modalForm){
   }
   function sectionOf(el){
     var s=el.closest('section,footer,header,.modal-panel,.menu-panel');
-    if(!s) return 'Strona';
-    if(s.tagName==='FOOTER') return 'Stopka';
-    if(s.tagName==='HEADER') return 'Nagłówek strony';
-    if(s.classList.contains('modal-panel')) return 'Okno kontaktowe';
-    if(s.classList.contains('menu-panel')) return 'Menu mobilne';
+    if(!s) return 'Сторінка';
+    if(s.tagName==='FOOTER') return 'Підвал';
+    if(s.tagName==='HEADER') return 'Шапка';
+    if(s.classList.contains('modal-panel')) return 'Вікно контакту';
+    if(s.classList.contains('menu-panel')) return 'Мобільне меню';
     var h=s.querySelector('h1,h2');
-    return h? h.textContent.trim().slice(0,60) : (s.id||'Sekcja');
+    return h? h.textContent.trim().slice(0,60) : (s.id||'Секція');
   }
-  var restored=0;
   function mark(){
     document.querySelectorAll(LEAF).forEach(function(el){
       if(el.hasAttribute('data-ed')) return;
@@ -2292,12 +2292,10 @@ if(modalForm){
   }
   function count(persist){
     var n=changed().length;
-    document.getElementById('ed-count').textContent = n ? (n+' zmian') : 'brak zmian';
-    document.getElementById('ed-save').disabled = !n;
-    var reset=document.getElementById('ed-reset');
-    if(reset) reset.disabled = !n;
-    var cp=document.getElementById('ed-copy');
-    if(cp) cp.disabled = !n;
+    document.getElementById('ed-count').textContent = n ? (n+' змін') : 'без змін';
+    ['ed-save','ed-copy','ed-reset'].forEach(function(id){
+      var b=document.getElementById(id); if(b) b.disabled = !n;
+    });
     store.forEach(function(r){
       var now = r.kind==='ph' ? r.el.getAttribute('placeholder') : r.el.textContent.trim();
       r.el.classList.toggle('ed-changed', now!==r.orig);
@@ -2311,13 +2309,13 @@ if(modalForm){
       });
     }
     document.body.classList.toggle('ed-restored', n>0 && !on);
-    var note=document.getElementById('ed-note');
-    if(note) note.textContent='Wczytano '+n+' zapisanych poprawek. Pomarańczowe fragmenty to Twoje zmiany.';
+    var nt=document.getElementById('ed-note');
+    if(nt) nt.textContent='Завантажено збережених правок: '+n+'. Помаранчевим позначено зміни.';
   }
 
   document.addEventListener('click', function(e){
     if(!on) return;
-    if(e.target.closest('#ed-bar,#ed-help')) return;
+    if(e.target.closest('#ed-bar,#ed-help,#ed-note')) return;
     var t=e.target.closest('[data-ed]');
     var i=e.target.closest('[data-edph]');
     if(t||i){ e.preventDefault(); e.stopPropagation(); }
@@ -2359,7 +2357,6 @@ if(modalForm){
     }
   }, true);
 
-  /* wklejanie zawsze jako czysty tekst */
   document.addEventListener('paste', function(e){
     var t=e.target;
     if(t.getAttribute && t.getAttribute('contenteditable')==='true'){
@@ -2369,19 +2366,13 @@ if(modalForm){
     }
   }, true);
 
-  /* ===== Generator prawdziwego .docx (ZIP bez kompresji) =====
-     Plik otwiera się w Wordzie, Pages, LibreOffice i Dokumentach Google. */
-  /* Minimalny generator .docx w przeglądarce — ZIP bez kompresji (metoda STORE) */
+  /* ===== справжній .docx (ZIP без стиснення) ===== */
   function makeDocx(rows, meta){
     var enc=new TextEncoder();
-
     var T=(function(){var t=new Uint32Array(256);for(var n=0;n<256;n++){var c=n;
       for(var k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0;}return t;})();
     function crc32(u8){var c=0xFFFFFFFF;for(var i=0;i<u8.length;i++)c=T[(c^u8[i])&0xFF]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
-
-    function esc(s){return String(s==null?'':s)
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-
+    function esc(x){return String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
     function cell(text,w,opt){
       opt=opt||{};
       return '<w:tc><w:tcPr><w:tcW w:w="'+w+'" w:type="dxa"/>'+
@@ -2396,55 +2387,41 @@ if(modalForm){
         '<w:r><w:rPr>'+(opt.b?'<w:b/>':'')+(opt.color?'<w:color w:val="'+opt.color+'"/>':'')+
         '<w:sz w:val="'+(opt.sz||22)+'"/></w:rPr><w:t xml:space="preserve">'+esc(text)+'</w:t></w:r></w:p>';
     }
-
-    var W=[520,2300,3600,3600];
-    var body=[];
+    var W=[520,2300,3600,3600], body=[];
     body.push(para(meta.title,{b:true,sz:40,after:60}));
     body.push(para(meta.subtitle,{color:'777777',sz:18,after:240}));
-    body.push('<w:tbl><w:tblPr><w:tblW w:w="10020" w:type="dxa"/>'+
-      '<w:tblBorders>'+['top','left','bottom','right','insideH','insideV'].map(function(s){
-        return '<w:'+s+' w:val="single" w:sz="4" w:color="CCCCCC"/>';}).join('')+
-      '</w:tblBorders></w:tblPr>'+
-      '<w:tblGrid>'+W.map(function(w){return '<w:gridCol w:w="'+w+'"/>';}).join('')+'</w:tblGrid>');
-    body.push('<w:tr>'+
-      cell('#',W[0],{b:true,shd:'F0F0F0',sz:18})+
-      cell('Sekcja',W[1],{b:true,shd:'F0F0F0',sz:18})+
-      cell('Było',W[2],{b:true,shd:'F0F0F0',sz:18})+
-      cell('Jest',W[3],{b:true,shd:'F0F0F0',sz:18})+'</w:tr>');
+    body.push('<w:tbl><w:tblPr><w:tblW w:w="10020" w:type="dxa"/><w:tblBorders>'+
+      ['top','left','bottom','right','insideH','insideV'].map(function(x){
+        return '<w:'+x+' w:val="single" w:sz="4" w:color="CCCCCC"/>';}).join('')+
+      '</w:tblBorders></w:tblPr><w:tblGrid>'+
+      W.map(function(w){return '<w:gridCol w:w="'+w+'"/>';}).join('')+'</w:tblGrid>');
+    body.push('<w:tr>'+cell('#',W[0],{b:true,shd:'F0F0F0',sz:18})+
+      cell('Секція',W[1],{b:true,shd:'F0F0F0',sz:18})+
+      cell('Було',W[2],{b:true,shd:'F0F0F0',sz:18})+
+      cell('Стало',W[3],{b:true,shd:'F0F0F0',sz:18})+'</w:tr>');
     rows.forEach(function(r,i){
-      body.push('<w:tr>'+
-        cell(String(i+1),W[0],{color:'888888'})+
-        cell(r.section+(r.kind==='ph'?' (pole formularza)':''),W[1],{color:'555555',sz:18})+
-        cell(r.orig,W[2],{color:'777777'})+
-        cell(r.now,W[3],{b:true})+'</w:tr>');
+      body.push('<w:tr>'+cell(String(i+1),W[0],{color:'888888'})+
+        cell(r.section+(r.kind==='ph'?' (поле форми)':''),W[1],{color:'555555',sz:18})+
+        cell(r.orig,W[2],{color:'777777'})+cell(r.now,W[3],{b:true})+'</w:tr>');
     });
     body.push('</w:tbl>');
-
     var files={
-     '[Content_Types].xml':
-      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+     '[Content_Types].xml':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
       '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'+
       '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'+
       '<Default Extension="xml" ContentType="application/xml"/>'+
-      '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'+
-      '</Types>',
-     '_rels/.rels':
-      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+      '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
+     '_rels/.rels':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
       '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
-      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>'+
-      '</Relationships>',
-     'word/_rels/document.xml.rels':
-      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+      '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>',
+     'word/_rels/document.xml.rels':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
       '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>',
-     'word/document.xml':
-      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+     'word/document.xml':'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
       '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>'+
-      body.join('')+
-      '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>'+
+      body.join('')+'<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>'+
       '<w:pgMar w:top="1000" w:right="900" w:bottom="1000" w:left="900" w:header="708" w:footer="708" w:gutter="0"/>'+
       '</w:sectPr></w:body></w:document>'
     };
-
     var chunks=[], central=[], offset=0;
     function u16(n){return [n&0xFF,(n>>8)&0xFF];}
     function u32(n){return [n&0xFF,(n>>8)&0xFF,(n>>16)&0xFF,(n>>24)&0xFF];}
@@ -2459,8 +2436,7 @@ if(modalForm){
     var cd=[], cdSize=0;
     central.forEach(function(f){
       var h=[].concat(u32(0x02014b50),u16(20),u16(20),u16(0x0800),u16(0),u16(0),u16(0),
-        u32(f.crc),u32(f.size),u32(f.size),u16(f.name.length),u16(0),u16(0),u16(0),u16(0),
-        u32(0),u32(f.offset));
+        u32(f.crc),u32(f.size),u32(f.size),u16(f.name.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(f.offset));
       cd.push(new Uint8Array(h), f.name);
       cdSize += h.length + f.name.length;
     });
@@ -2476,32 +2452,31 @@ if(modalForm){
               now: r.kind==='ph' ? r.el.getAttribute('placeholder') : r.el.textContent.trim()};
     });
     var blob=makeDocx(rows,{
-      title:'DIESELPROG — poprawki tekstu',
-      subtitle:'Strona główna (index.html) · '+new Date().toLocaleString('pl-PL')+' · liczba zmian: '+rows.length
+      title:'DIESELPROG — правки тексту',
+      subtitle:'Головна (index.html) · '+new Date().toLocaleString('uk-UA')+' · кількість змін: '+rows.length
     });
     var a=document.createElement('a');
     a.href=URL.createObjectURL(blob);
-    a.download='dieselprog-poprawki-strona-glowna.docx';
+    a.download='dieselprog-pravky-index.docx';
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
   }
 
-  /* Kopiowanie do schowka — do wklejenia wprost w Dokumenty Google */
   function copyAll(){
     var rows=changed(), out=[];
-    out.push('DIESELPROG — poprawki tekstu · Strona główna');
+    out.push('DIESELPROG — правки тексту · Головна');
     out.push('');
     rows.forEach(function(r,n){
       var now = r.kind==='ph' ? r.el.getAttribute('placeholder') : r.el.textContent.trim();
-      out.push((n+1)+'. SEKCJA: '+r.section);
-      out.push('   BYŁO: '+r.orig);
-      out.push('   JEST: '+now);
+      out.push((n+1)+'. СЕКЦІЯ: '+r.section);
+      out.push('   БУЛО: '+r.orig);
+      out.push('   СТАЛО: '+now);
       out.push('');
     });
     var txt=out.join('\n');
     var done=function(){
       var b=document.getElementById('ed-copy'), o=b.textContent;
-      b.textContent='Skopiowano'; setTimeout(function(){ b.textContent=o; },1600);
+      b.textContent='Скопійовано'; setTimeout(function(){ b.textContent=o; },1600);
     };
     if(navigator.clipboard&&navigator.clipboard.writeText){
       navigator.clipboard.writeText(txt).then(done, function(){});
@@ -2513,20 +2488,18 @@ if(modalForm){
 
   var bar=document.createElement('div');
   bar.id='ed-bar';
-  bar.innerHTML='<button id="ed-toggle">Tryb korekty</button>'+
-                '<span id="ed-count">brak zmian</span>'+
+  bar.innerHTML='<button id="ed-toggle">Режим редагування</button>'+
+                '<span id="ed-count">без змін</span>'+
                 '<span id="ed-status"></span>'+
-                '<button id="ed-save" disabled>Pobierz .docx</button>'+
-                '<button id="ed-copy" disabled>Kopiuj</button>'+
-                '<button id="ed-reset" disabled>Cofnij wszystko</button>';
+                '<button id="ed-save" disabled>Завантажити .docx</button>'+
+                '<button id="ed-copy" disabled>Копіювати</button>'+
+                '<button id="ed-reset" disabled>Скасувати все</button>';
   var help=document.createElement('div');
   help.id='ed-help';
-  help.innerHTML='<b>Tryb korekty włączony.</b><br>Kliknij dowolny tekst i popraw go. '+
-    'Enter zatwierdza, Escape anuluje. Poprawione miejsca podświetlają się na zielono. '+
-    'Zmiany zapisują się automatycznie we wspólnej bazie — widzi je każdy, kto otworzy tę stronę, '+
-    'także z innego komputera. '+
-    'Na końcu kliknij <b>Pobierz .docx</b> — plik otworzysz w Wordzie albo wrzucisz na Dysk Google. '+
-    'Przycisk <b>Kopiuj</b> wkleja listę zmian wprost do Dokumentów Google.';
+  help.innerHTML='<b>Режим редагування увімкнено.</b><br>Клацніть будь-який текст і виправте його. '+
+    'Enter — зберегти, Escape — скасувати. Виправлені місця підсвічуються помаранчевим. '+
+    'Зміни зберігаються автоматично у спільній базі — їх бачить кожен, хто відкриє цю сторінку. '+
+    '<b>Завантажити .docx</b> віддає файл зі списком правок.';
   var note=document.createElement('div');
   note.id='ed-note';
   document.body.appendChild(bar);
@@ -2537,27 +2510,29 @@ if(modalForm){
     on=!on;
     document.body.classList.toggle('ed-on', on);
     this.classList.toggle('on', on);
-    this.textContent = on ? 'Wyłącz korektę' : 'Tryb korekty';
+    this.textContent = on ? 'Вимкнути редагування' : 'Режим редагування';
     if(on){ askAuthor(); mark(); }
+    count(false);
   });
   document.getElementById('ed-save').addEventListener('click', save);
   document.getElementById('ed-copy').addEventListener('click', copyAll);
   document.getElementById('ed-reset').addEventListener('click', function(){
-    if(!confirm('Cofnąć wszystkie poprawki i wrócić do tekstu wyjściowego?')) return;
+    if(!confirm('Скасувати всі правки і повернути початковий текст?')) return;
     try{ localStorage.removeItem(KEY); }catch(e){}
     fetch(SB.url+'/rest/v1/korekty?page=eq.'+encodeURIComponent(SB.page),
       {method:'DELETE', headers:sbHeaders()}).catch(function(){});
-    store.forEach(function(r){ r._sent=null; });
     store.forEach(function(r){
+      r._sent=null;
       if(r.kind==='ph') r.el.setAttribute('placeholder', r.orig);
       else r.el.textContent = r.orig;
       r.el.classList.remove('ed-changed');
     });
-    count();
+    count(false);
   });
+
   sbLoad().then(function(map){
     remote = map;
-    if(map===null) status('Tryb offline — zmiany tylko w tej przeglądarce','warn');
+    if(map===null) status('Немає зв\'язку з базою — зміни лише в цьому браузері','warn');
     [0,400,1200,2600,4000].forEach(function(ms){ setTimeout(mark, ms); });
   });
 })();
