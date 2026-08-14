@@ -1017,6 +1017,7 @@ body.ed-on [data-ed][contenteditable="true"]{outline:2px solid #5AA0FF;backgroun
 [data-ed].ed-changed{outline:2px solid #FF9A3C !important;outline-offset:2px;
   background:rgba(255,154,60,.14);border-radius:2px}
 input.ed-changed,textarea.ed-changed{outline:2px solid #FF9A3C;background:rgba(255,154,60,.10)}
+[data-edwrap]{display:inline}
 body.ed-on input,body.ed-on textarea{cursor:text}
 body.ed-on input.ed-input,body.ed-on textarea.ed-input{outline:2px solid #5AA0FF}
 
@@ -1938,7 +1939,8 @@ buildFAQ($('#faq-list'), [
 (function(){
   if(matchMedia('(max-width:1023px)').matches) return;
 
-  var LEAF='h1,h2,h3,h4,p,span,a,button,small,b,strong,li,td,th,figcaption,dd,dt';
+  var LEAF='h1,h2,h3,h4,h5,h6,p,span,a,button,small,b,strong,em,i,li,td,th,'+
+           'figcaption,dd,dt,div,blockquote,label,summary,caption';
   var SKIP_IN='#ed-bar,#ed-help,#ed-note,.ph,svg,select,option,script,style';
   var store=[], on=false, restored=0, _sent={};
   var KEY='dieselprog-korekta-wylaczenie-adblue';
@@ -2074,7 +2076,31 @@ buildFAQ($('#faq-list'), [
     var h=s.querySelector('h1,h2');
     return h? h.textContent.trim().slice(0,60) : (s.id||'Секція');
   }
+  /* Текст, що лежить поруч із вкладеним елементом (напр. «od 1 200 zł» перед підписом),
+     не має власної обгортки — загортаємо його, щоб теж піддавався правці. */
+  function wrapStray(){
+    var host=document.querySelector('main') || document.body;
+    var walker=document.createTreeWalker(host, NodeFilter.SHOW_TEXT, {
+      acceptNode:function(n){
+        if(!n.nodeValue || !n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+        var p=n.parentElement;
+        if(!p || p.closest(SKIP_IN) || p.hasAttribute('data-edwrap')) return NodeFilter.FILTER_REJECT;
+        if(!p.children.length) return NodeFilter.FILTER_REJECT;   // цілий елемент — обробимо як є
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    var nodes=[], n;
+    while((n=walker.nextNode())) nodes.push(n);
+    nodes.forEach(function(node){
+      var sp=document.createElement('span');
+      sp.setAttribute('data-edwrap','1');
+      node.parentNode.replaceChild(sp, node);
+      sp.appendChild(node);
+    });
+  }
+
   function mark(){
+    wrapStray();
     document.querySelectorAll(LEAF).forEach(function(el){
       if(el.hasAttribute('data-ed')) return;
       if(!isLeaf(el)) return;
