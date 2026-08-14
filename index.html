@@ -201,7 +201,7 @@ h3{font-size:1.4rem;letter-spacing:-.025em;line-height:1.2}
 .hero-scrim{position:absolute;inset:0;z-index:1;
   background:linear-gradient(180deg,rgba(0,0,0,.72) 0%,rgba(0,0,0,.25) 32%,rgba(0,0,0,.55) 66%,rgba(0,0,0,.92) 100%)}
 .hero-in{position:relative;z-index:2;width:100%;padding:2.5rem 0}
-.hero-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(22rem,26rem);gap:4rem;align-items:center}
+.hero-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(22rem,26rem);gap:4rem;align-items:end}
 .hero h1{margin:1.5rem 0 0;max-width:15ch}
 .hero-tags{display:flex;gap:.6rem;flex-wrap:wrap;margin-top:2rem}
 .hero-cta{display:flex;gap:.7rem;flex-wrap:wrap;margin-top:2.4rem}
@@ -965,11 +965,16 @@ h3{font-size:1.4rem;letter-spacing:-.025em;line-height:1.2}
 #ed-status:empty{display:none}
 #ed-status.ok{color:#63C77E}
 #ed-status.warn{color:#FF9A3C}
-#ed-help{position:fixed;left:1rem;bottom:4.6rem;z-index:400;max-width:20rem;padding:.9rem 1rem;
+#ed-help{position:fixed;left:1rem;bottom:4.6rem;z-index:400;max-width:20rem;padding:.9rem 2.3rem .9rem 1rem;
   border-radius:.9rem;background:rgba(20,20,20,.96);border:1px solid #2E2E2E;color:#9A9A9A;
   font-size:.78rem;line-height:1.5;font-family:Manrope,system-ui,sans-serif;display:none}
 #ed-help b{color:#fff;font-weight:600}
+#ed-help-x{position:absolute;top:.5rem;right:.5rem;width:1.6rem;height:1.6rem;padding:0;
+  border:0;border-radius:50%;background:#2E2E2E;color:#BDBDBD;font-size:.9rem;line-height:1;
+  cursor:pointer;display:grid;place-items:center}
+#ed-help-x:hover{background:#3E3E3E;color:#fff}
 body.ed-on #ed-help{display:block}
+body.ed-on #ed-help.hidden{display:none}
 #ed-note{position:fixed;left:1rem;bottom:4.6rem;z-index:401;max-width:20rem;padding:.7rem .9rem;
   border-radius:.8rem;background:#FF9A3C;color:#1A1A1A;font-size:.78rem;line-height:1.45;font-weight:500;
   font-family:Manrope,system-ui,sans-serif;display:none}
@@ -2435,7 +2440,8 @@ if(modalForm){
                 '<button id="ed-reset" disabled>Скасувати все</button>';
   var help=document.createElement('div');
   help.id='ed-help';
-  help.innerHTML='<b>Режим редагування увімкнено.</b><br>Клацніть будь-який текст і виправте його. '+
+  help.innerHTML='<button id="ed-help-x" type="button" aria-label="Закрити підказку">×</button>'+
+    '<b>Режим редагування увімкнено.</b><br>Клацніть будь-який текст і виправте його. '+
     'Enter — зберегти, Escape — скасувати. Виправлені місця підсвічуються помаранчевим. '+
     'Якщо той самий текст є в кількох місцях (меню, футер, картка) — він оновиться скрізь одночасно. '+
     'Зміни зберігаються автоматично у спільній базі — їх бачить кожен, хто відкриє цю сторінку, '+
@@ -2445,6 +2451,13 @@ if(modalForm){
   document.body.appendChild(bar);
   document.body.appendChild(help);
   document.body.appendChild(note);
+
+  var HKEY='dieselprog-korekta-pidkazka';
+  if(localStorage.getItem(HKEY)==='off') help.classList.add('hidden');
+  document.getElementById('ed-help-x').addEventListener('click', function(){
+    help.classList.add('hidden');
+    try{ localStorage.setItem(HKEY,'off'); }catch(e){}
+  });
 
   document.getElementById('ed-toggle').addEventListener('click', function(){
     on=!on;
