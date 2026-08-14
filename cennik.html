@@ -1007,7 +1007,8 @@ body.ed-on [data-ed][contenteditable="true"]{outline:2px solid #5AA0FF;backgroun
 [data-ed].ed-changed{outline:2px solid #FF9A3C !important;outline-offset:2px;
   background:rgba(255,154,60,.14);border-radius:2px}
 input.ed-changed,textarea.ed-changed{outline:2px solid #FF9A3C;background:rgba(255,154,60,.10)}
-[data-edwrap]{display:inline}
+edit-text{display:inline;font:inherit;color:inherit;letter-spacing:inherit;
+  line-height:inherit;text-transform:inherit;background:none;margin:0;padding:0}
 body.ed-on input,body.ed-on textarea{cursor:text}
 body.ed-on input.ed-input,body.ed-on textarea.ed-input{outline:2px solid #5AA0FF}
 
@@ -1949,7 +1950,7 @@ buildFAQ($('#faq-list'), [
   if(matchMedia('(max-width:1023px)').matches) return;
 
   var LEAF='h1,h2,h3,h4,h5,h6,p,span,a,button,small,b,strong,em,i,li,td,th,'+
-           'figcaption,dd,dt,div,blockquote,label,summary,caption';
+           'figcaption,dd,dt,div,blockquote,label,summary,caption,edit-text';
   var SKIP_IN='#ed-bar,#ed-help,#ed-note,.ph,svg,select,option,script,style';
   var store=[], on=false, restored=0, _sent={};
   var KEY='dieselprog-korekta-cennik';
@@ -2101,7 +2102,7 @@ buildFAQ($('#faq-list'), [
     var nodes=[], n;
     while((n=walker.nextNode())) nodes.push(n);
     nodes.forEach(function(node){
-      var sp=document.createElement('span');
+      var sp=document.createElement('edit-text');
       sp.setAttribute('data-edwrap','1');
       node.parentNode.replaceChild(sp, node);
       sp.appendChild(node);
