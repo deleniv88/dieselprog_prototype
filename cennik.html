@@ -1981,24 +1981,24 @@ buildFAQ($('#faq-list'), [
     el.textContent=txt||''; el.className=cls||'';
   }
   function sbLoad(){
-    return fetch(SB.url+'/rest/v1/korekty?select=original,updated,kind&page=eq.'+encodeURIComponent(SB.page),
+    return fetch(SB.url+'/rest/v1/korekty?select=path,original,updated,kind&page=eq.'+encodeURIComponent(SB.page),
       {headers:sbHeaders()})
       .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
       .then(function(list){
         var map={};
-        list.forEach(function(row){ map[row.original]={v:row.updated,k:row.kind}; });
+        list.forEach(function(row){ if(row.path) map[row.path]={v:row.updated,k:row.kind}; });
         return map;
       })
       .catch(function(){ return null; });
   }
   function sbPush(rec, now){
-    queue[rec.orig]={page:SB.page, original:rec.orig, updated:now,
+    queue[rec.path]={page:SB.page, path:rec.path, original:rec.orig, updated:now,
                      section:rec.section, kind:rec.kind, author:author||null};
     flush();
   }
-  function sbDrop(orig){
+  function sbDrop(path){
     return fetch(SB.url+'/rest/v1/korekty?page=eq.'+encodeURIComponent(SB.page)+
-      '&original=eq.'+encodeURIComponent(orig), {method:'DELETE', headers:sbHeaders()})
+      '&path=eq.'+encodeURIComponent(path), {method:'DELETE', headers:sbHeaders()})
       .catch(function(){});
   }
   var flushTimer=null;
@@ -2008,7 +2008,7 @@ buildFAQ($('#faq-list'), [
       var rows=Object.keys(queue).map(function(k){ return queue[k]; });
       if(!rows.length || saving) return;
       saving=true; queue={}; status('Збереження…','');
-      fetch(SB.url+'/rest/v1/korekty?on_conflict=page,original',{
+      fetch(SB.url+'/rest/v1/korekty?on_conflict=page,path',{
         method:'POST',
         headers:sbHeaders({'Prefer':'resolution=merge-duplicates,return=minimal'}),
         body:JSON.stringify(rows)
@@ -2019,7 +2019,7 @@ buildFAQ($('#faq-list'), [
         setTimeout(function(){ if(!Object.keys(queue).length) status(''); }, 2200);
       }).catch(function(){
         saving=false;
-        rows.forEach(function(r){ queue[r.original]=r; });
+        rows.forEach(function(r){ queue[r.path]=r; });
         status('Немає зв\'язку — збережено локально','warn');
       });
     }, 700);
@@ -2039,15 +2039,15 @@ buildFAQ($('#faq-list'), [
     var data={};
     store.forEach(function(r){
       var now = r.kind==='ph' ? r.el.getAttribute('placeholder') : r.el.textContent.trim();
-      if(now!==r.orig) data[r.orig]={v:now,s:r.section,k:r.kind};
+      if(now!==r.orig) data[r.path]={v:now,s:r.section,k:r.kind};
     });
     try{ localStorage.setItem(KEY, JSON.stringify(data)); }catch(e){}
   }
   function applySaved(r){
     /* remote !== null означає, що база відповіла — тоді вона головна,
        локальна копія потрібна лише за відсутності зв'язку */
-    var saved = remote ? (remote[r.orig] ? {v:remote[r.orig].v} : null)
-                       : readSaved()[r.orig];
+    var saved = remote ? (remote[r.path] ? {v:remote[r.path].v} : null)
+                       : readSaved()[r.path];
     if(!saved) return false;
     if(r.kind==='ph') r.el.setAttribute('placeholder', saved.v);
     else r.el.textContent = saved.v;
@@ -2055,24 +2055,24 @@ buildFAQ($('#faq-list'), [
     return true;
   }
 
-  var lastEdited=null;
+  /* Адреса елемента в дереві сторінки — саме за нею зіставляються правки,
+     тому однаковий текст у різних місцях правиться окремо. */
+  function pathOf(el){
+    var parts=[];
+    while(el && el!==document.body && el.parentElement){
+      var p=el.parentElement;
+      var same=[].filter.call(p.children, function(c){ return c.tagName===el.tagName; });
+      parts.unshift(el.tagName.toLowerCase()+same.indexOf(el));
+      el=p;
+    }
+    return parts.join('/');
+  }
   function valOf(r){
     return r.kind==='ph' ? r.el.getAttribute('placeholder') : r.el.textContent.trim();
   }
   function setVal(r, v){
     if(r.kind==='ph') r.el.setAttribute('placeholder', v);
     else r.el.textContent = v;
-  }
-  /* той самий текст трапляється на сторінці кілька разів (меню, футер, картка) —
-     після правки одного місця вирівнюємо решту, щоб не було розбіжностей */
-  function syncSame(){
-    if(!lastEdited) return;
-    var v=valOf(lastEdited);
-    store.forEach(function(r){
-      if(r===lastEdited || r.orig!==lastEdited.orig) return;
-      if(r.el.getAttribute && r.el.getAttribute('contenteditable')==='true') return;
-      if(valOf(r)!==v) setVal(r, v);
-    });
   }
 
   function isLeaf(el){
@@ -2125,31 +2125,25 @@ buildFAQ($('#faq-list'), [
       var t=el.textContent.trim();
       if(t.length<2) return;
       el.setAttribute('data-ed', store.length);
-      var rec={el:el, kind:'text', section:sectionOf(el), orig:t};
+      var rec={el:el, kind:'text', section:sectionOf(el), orig:t, path:pathOf(el)};
       store.push(rec);
       if(applySaved(rec)) restored++;
     });
     document.querySelectorAll('input[placeholder],textarea[placeholder]').forEach(function(el){
       if(el.hasAttribute('data-edph')) return;
       el.setAttribute('data-edph', store.length);
-      var rp={el:el, kind:'ph', section:sectionOf(el), orig:el.getAttribute('placeholder')};
+      var rp={el:el, kind:'ph', section:sectionOf(el), orig:el.getAttribute('placeholder'),
+              path:pathOf(el)+'#ph'};
       store.push(rp);
       if(applySaved(rp)) restored++;
     });
     count(false);
   }
-  /* одна правка = один текст, навіть якщо він повторюється в кількох місцях */
+  /* кожне місце на сторінці рахується окремо */
   function changed(){
-    var seen={}, out=[];
-    store.forEach(function(r){
-      if(valOf(r)===r.orig) return;
-      if(seen[r.orig]) return;
-      seen[r.orig]=true; out.push(r);
-    });
-    return out;
+    return store.filter(function(r){ return valOf(r)!==r.orig; });
   }
   function count(persist){
-    syncSame();
     var n=changed().length;
     document.getElementById('ed-count').textContent = n ? (n+' змін') : 'без змін';
     var rb=document.getElementById('ed-reset');
@@ -2161,11 +2155,11 @@ buildFAQ($('#faq-list'), [
       writeSaved();
       var sent={};
       changed().forEach(function(r){
-        var now=valOf(r); sent[r.orig]=true;
-        if(_sent[r.orig]!==now){ _sent[r.orig]=now; sbPush(r, now); }
+        var now=valOf(r); sent[r.path]=true;
+        if(_sent[r.path]!==now){ _sent[r.path]=now; sbPush(r, now); }
       });
-      Object.keys(_sent).forEach(function(orig){
-        if(!sent[orig]){ delete _sent[orig]; sbDrop(orig); }
+      Object.keys(_sent).forEach(function(path){
+        if(!sent[path]){ delete _sent[path]; sbDrop(path); }
       });
     }
     document.body.classList.toggle('ed-restored', n>0 && !on);
@@ -2196,23 +2190,18 @@ buildFAQ($('#faq-list'), [
     var t=e.target;
     if(t.getAttribute && t.getAttribute('contenteditable')==='true'){
       t.removeAttribute('contenteditable');
-      lastEdited = store[+t.getAttribute('data-ed')] || null;
       count();
     }
     if(t.classList && t.classList.contains('ed-input')){
       t.setAttribute('placeholder', t.value.trim());
       t.value=''; t.classList.remove('ed-input');
-      lastEdited = store[+t.getAttribute('data-edph')] || null;
       count();
     }
   }, true);
 
   document.addEventListener('input', function(e){
     var t=e.target;
-    if(t.getAttribute && t.getAttribute('contenteditable')==='true'){
-      lastEdited = store[+t.getAttribute('data-ed')] || null;
-      count();
-    }
+    if(t.getAttribute && t.getAttribute('contenteditable')==='true') count();
   }, true);
 
   document.addEventListener('keydown', function(e){
@@ -2244,7 +2233,6 @@ buildFAQ($('#faq-list'), [
   help.innerHTML='<button id="ed-help-x" type="button" aria-label="Закрити підказку">×</button>'+
     '<b>Режим редагування увімкнено.</b><br>Клацніть будь-який текст і виправте його. '+
     'Enter — зберегти, Escape — скасувати. Виправлені місця підсвічуються помаранчевим. '+
-    'Якщо той самий текст є в кількох місцях (меню, футер, картка) — він оновиться скрізь одночасно. '+
     'Зміни зберігаються автоматично у спільній базі — їх бачить кожен, хто відкриє цю сторінку, '+
     'нічого додатково натискати не треба.';
   var note=document.createElement('div');
@@ -2273,7 +2261,7 @@ buildFAQ($('#faq-list'), [
     try{ localStorage.removeItem(KEY); }catch(e){}
     fetch(SB.url+'/rest/v1/korekty?page=eq.'+encodeURIComponent(SB.page),
       {method:'DELETE', headers:sbHeaders()}).catch(function(){});
-    _sent={}; lastEdited=null; remote={};
+    _sent={}; remote={};
     store.forEach(function(r){
       if(r.kind==='ph') r.el.setAttribute('placeholder', r.orig);
       else r.el.textContent = r.orig;
@@ -2289,9 +2277,9 @@ buildFAQ($('#faq-list'), [
     } else {
       /* локальна копія = точний зліпок бази; чого в базі немає — зникає і тут */
       var mirror={};
-      Object.keys(map).forEach(function(orig){
-        mirror[orig]={v:map[orig].v, k:map[orig].k};
-        _sent[orig]=map[orig].v;
+      Object.keys(map).forEach(function(path){
+        mirror[path]={v:map[path].v, k:map[path].k};
+        _sent[path]=map[path].v;
       });
       try{ localStorage.setItem(KEY, JSON.stringify(mirror)); }catch(e){}
     }
